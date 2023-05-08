@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity >=0.5.0 <0.7.0;
+pragma experimental ABIEncoderV2;
+
+contract Hospital {
+    address payable hospital;   // 醫師地址(合約發起者)
+    
+    // 病人結構
+    struct Patient {
+        string name;            // 姓名
+        string residence;       // 居住地址
+        string email;           // 病患email
+        uint serialID;          // 病歷序號，用來記錄目前病人有幾個病歷(診斷資料)
+        mapping(uint => Record) records;    // 紀錄病人的診斷資料
+        address patient;      // 紀錄病人所在醫師地址
+        bool isExisted;         // 是否已建檔
+       
+    }
+    // 住院資料結構
+    struct Record {
+        bool isExisted;         // 此診斷資料是否已建檔
+        string Etiology;        //病因
+    }
+    //病歷印出
+    struct patientforprint{
+        string name;            // 姓名
+        string residence;   
+        uint serialID; 
+        string Etiology;     
+    }
+
+    
+    modifier OnlyHospital {
+        require(msg.sender == hospital, "你不是醫院角色");
+        _;
+    }
+    
+    mapping(address => Patient) patients;   // 記錄病人資料
+    mapping(address => mapping(address => bool)) auth;     // 醫師授權狀態
+    
+    // 建構子(初始化)
+    constructor() public {
+        // 把部署合約的地址當作是醫院地址
+        hospital = msg.sender;
+    }
+    // 新增病患基本資料 (操作的是醫師)
+    function addPatient(address paddr, string memory pname, string memory presidence, string memory pemail) public OnlyHospital {
+        require(patients[paddr].isExisted == false, "病人資料已存在");
+        
+        patients[paddr].name = pname;
+        patients[paddr].residence = presidence;
+        patients[paddr].email = pemail;
+        patients[paddr].serialID = 0;
+        patients[paddr].isExisted = true ; 
+    }
+    
+    // 新增病患診斷資料(操作的是醫師)
+    function addRecord(address paddr, string memory _pEtiology, uint id) public OnlyHospital returns(uint) {
+        require(patients[paddr].isExisted == true, "病人資料不存在");
+        
+        uint index = id;
+              
+        patients[paddr].records[index].isExisted = true;
+        patients[paddr].records[index].Etiology = _pEtiology;
+        
+        patients[paddr].serialID = index;
+        
+        return index;
+    }
+
+    
+    // 醫師授權病患可申請病歷(操作的是醫師)
+    function setpatient(address paddr) public {
+        patients[msg.sender].patient = paddr;
+        auth[msg.sender][paddr] = true;
+    }
+    
+    // 病患申請病歷資料(操作的是病人)
+    function applyRecord(address paddr, uint serialId) public view returns (Record memory) {
+        require(patients[paddr].isExisted == true, "病人資料不存在");
+        require(patients[paddr].records[serialId].isExisted == true, "病歷不存在");
+        require(auth[msg.sender][paddr] == true, "未授權申請");
+     
+        return patients[paddr].records[serialId];
+    }
+    //醫師回傳病歷
+     function getpatient(address paddr) public view returns(patientforprint memory) {
+        uint size = patients[paddr].serialID;
+        
+        patientforprint memory pfp = patientforprint({
+            name : patients[paddr].name,
+            residence : patients[paddr].residence,
+            serialID : patients[paddr].serialID,
+            Etiology : patients[paddr].records[size].Etiology
+
+        });
+         return pfp;
+        
+    }
+
+   
+}
